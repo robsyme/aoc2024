@@ -1,7 +1,7 @@
+use crate::location::Location;
+use crate::location::LocationListPair;
 use crate::utils::advent;
 use anyhow::Result;
-use std::collections::HashMap;
-
 pub struct Solver;
 
 impl advent::Solver<1> for Solver {
@@ -9,77 +9,27 @@ impl advent::Solver<1> for Solver {
     type Part2 = u32;
 
     fn solve_part_one(&self, input: &str) -> Result<Self::Part1> {
-        let mut first_column: Vec<Result<u32, String>> = Vec::new();
-        let mut second_column: Vec<Result<u32, String>> = Vec::new();
+        let location_list_pair = LocationListPair::try_from(input)?;
 
-        for (line_num, line) in input.lines().filter(|line| !line.is_empty()).enumerate() {
-            let mut parts = line.split_whitespace();
+        let left = location_list_pair.left.locations.iter();
+        let right = location_list_pair.right.locations.iter();
 
-            let first_num = parts
-                .next()
-                .ok_or_else(|| format!("Line {}: Missing first number", line_num + 1))
-                .and_then(|n| {
-                    n.parse::<u32>()
-                        .map_err(|e| format!("Line {}: {}", line_num + 1, e))
-                });
-            first_column.push(first_num);
-
-            let second_num = parts
-                .next()
-                .ok_or_else(|| format!("Line {}: Missing second number", line_num + 1))
-                .and_then(|n| {
-                    n.parse::<u32>()
-                        .map_err(|e| format!("Line {}: {}", line_num + 1, e))
-                });
-            second_column.push(second_num);
-        }
-
-        let mut first_nums: Vec<u32> = first_column.into_iter().filter_map(Result::ok).collect();
-        let mut second_nums: Vec<u32> = second_column.into_iter().filter_map(Result::ok).collect();
-
-        first_nums.sort();
-        second_nums.sort();
-
-        let distances = first_nums
-            .into_iter()
-            .zip(second_nums.into_iter())
-            .map(|(a, b)| a.abs_diff(b))
-            .sum();
-
-        Ok(distances)
+        let total_distance = left.zip(right).map(Location::distance_between).sum();
+        Ok(total_distance)
     }
 
     fn solve_part_two(&self, input: &str) -> Result<Self::Part2> {
-        let mut first_column: Vec<Result<u32, String>> = Vec::new();
-        let mut second_column_counts: HashMap<u32, u32> = HashMap::new();
-
-        for (line_num, line) in input.lines().filter(|line| !line.is_empty()).enumerate() {
-            let mut parts = line.split_whitespace();
-            let first_num = parts
-                .next()
-                .ok_or_else(|| format!("Line {}: Missing first number", line_num + 1))
-                .and_then(|n| {
-                    n.parse::<u32>()
-                        .map_err(|e| format!("Line {}: {}", line_num + 1, e))
-                });
-            first_column.push(first_num);
-
-            let second_num = parts
-                .next()
-                .ok_or_else(|| format!("Line {}: Missing second number", line_num + 1))
-                .and_then(|n| {
-                    n.parse::<u32>()
-                        .map_err(|e| format!("Line {}: {}", line_num + 1, e))
-                });
-            if let Ok(num) = second_num {
-                *second_column_counts.entry(num).or_insert(0) += 1;
-            }
-        }
-
-        let similarity_score = first_column
-            .into_iter()
-            .filter_map(|num| num.ok())
-            .map(|num| num * second_column_counts.get(&num).unwrap_or(&0))
+        let location_list_pair = LocationListPair::try_from(input)?;
+        let frequencies = location_list_pair.right.into_frequencies();
+        let similarity_score = location_list_pair
+            .left
+            .locations
+            .iter()
+            .map(|location| {
+                let frequency = frequencies.get(location).unwrap_or(&0);
+                let count: u32 = location.into();
+                count * frequency
+            })
             .sum();
 
         Ok(similarity_score)
