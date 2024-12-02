@@ -38,8 +38,28 @@ impl Report {
         self.variant_windows(max_dampner_level)
             .iter()
             .any(|windows| {
-                StatusIterator::new(windows.clone(), max_diff)
-                    .all(|status| status != LevelStatus::Unsafe)
+                let mut increasing_count = 0;
+                let mut decreasing_count = 0;
+                windows.iter().all(|(prev, next)| match next - prev {
+                    diff if diff.abs() > max_diff || diff == 0 => false,
+                    diff if (diff > 0 && decreasing_count > 0) => {
+                        increasing_count += 1;
+                        false
+                    }
+                    diff if (diff < 0 && increasing_count > 0) => {
+                        decreasing_count += 1;
+                        false
+                    }
+                    diff if diff > 0 => {
+                        increasing_count += 1;
+                        true
+                    }
+                    diff if diff < 0 => {
+                        decreasing_count += 1;
+                        true
+                    }
+                    _ => unreachable!(),
+                })
             })
     }
 }
@@ -54,56 +74,6 @@ impl FromStr for Report {
             .collect::<Result<_, _>>()?;
         Ok(Report { levels })
     }
-}
-
-struct StatusIterator {
-    windows: Vec<(i32, i32)>,
-    increasing_count: usize,
-    decreasing_count: usize,
-    max_diff: i32,
-}
-
-impl StatusIterator {
-    fn new(windows: Vec<(i32, i32)>, max_diff: i32) -> Self {
-        Self {
-            windows,
-            increasing_count: 0,
-            decreasing_count: 0,
-            max_diff,
-        }
-    }
-}
-
-impl Iterator for StatusIterator {
-    type Item = LevelStatus;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let (previous_value, current_value) = self.windows.pop()?;
-        let diff = current_value - previous_value;
-
-        if diff.abs() > self.max_diff || diff == 0 {
-            return Some(LevelStatus::Unsafe);
-        }
-
-        if (diff > 0 && self.decreasing_count > 0) || (diff < 0 && self.increasing_count > 0) {
-            return Some(LevelStatus::Unsafe);
-        }
-
-        if diff > 0 {
-            self.increasing_count += 1;
-            Some(LevelStatus::Increasing)
-        } else {
-            self.decreasing_count += 1;
-            Some(LevelStatus::Decreasing)
-        }
-    }
-}
-
-#[derive(Debug, PartialEq)]
-enum LevelStatus {
-    Increasing,
-    Decreasing,
-    Unsafe,
 }
 
 impl advent::Solver<2> for Solver {
@@ -184,11 +154,5 @@ mod tests {
     fn empty_report_is_safe() {
         let report = Report::from_str("").unwrap();
         assert_eq!(report.is_safe(0, 3), true);
-    }
-
-    #[test]
-    fn feature_test() {
-        let report = Report::from_str("1 2 3 4 5").unwrap();
-        let windows = report.variant_windows(2);
     }
 }
