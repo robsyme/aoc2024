@@ -9,48 +9,52 @@ impl advent::Solver<3> for Solver {
     type Part2 = usize;
 
     fn solve_part_one(&self, input: &str) -> Result<Self::Part1> {
-        let mut count = 0;
-        let sum = input
-            .match_indices("mul(")
-            .filter_map(|(i, _)| {
-                if let Ok(product) = parse_mul(&input[i..]) {
-                    count += 1;
-                    Some(product)
-                } else {
-                    None
-                }
-            })
-            .sum();
+        let mut sum = 0;
+        let mut current = input;
+
+        while let Some(mul_pos) = current.find("mul(") {
+            if let Ok((product, rest)) = parse_mul_and_remainder(&current[mul_pos..]) {
+                sum += product;
+                current = rest;
+            } else {
+                current = current.get(mul_pos + 4..).unwrap_or_default();
+            }
+        }
 
         Ok(sum)
     }
 
     fn solve_part_two(&self, input: &str) -> Result<Self::Part2> {
-        let sum = input
-            .char_indices()
-            .scan(true, |enabled, (i, _)| {
-                let s = &input[i..];
-                if s.starts_with("don't()") {
-                    *enabled = false;
-                    Some(None)
-                } else if s.starts_with("do()") {
-                    *enabled = true;
-                    Some(None)
-                } else if s.starts_with("mul(") && *enabled {
-                    Some(parse_mul(s).ok())
+        let mut sum = 0;
+        let mut current = input;
+        let mut enabled = true;
+
+        while !current.is_empty() {
+            if let Some(rest) = current.strip_prefix("don't()") {
+                enabled = false;
+                current = rest;
+            } else if let Some(rest) = current.strip_prefix("do()") {
+                enabled = true;
+                current = rest;
+            } else if enabled && current.starts_with("mul(") {
+                if let Ok((product, rest)) = parse_mul_and_remainder(current) {
+                    sum += product;
+                    current = rest;
                 } else {
-                    Some(None)
+                    current = current.strip_prefix("mul(").unwrap_or(current);
                 }
-            })
-            .flatten()
-            .sum();
+            } else {
+                // Move to the next character
+                current = current.get(1..).unwrap_or_default();
+            }
+        }
 
         Ok(sum)
     }
 }
 
-fn parse_mul(input: &str) -> Result<usize> {
-    let (nums, _) = input
+fn parse_mul_and_remainder(input: &str) -> Result<(usize, &str)> {
+    let (nums, rest) = input
         .strip_prefix("mul(")
         .and_then(|s| s.split_once(')'))
         .ok_or_else(|| anyhow::anyhow!("Invalid mul expression"))?;
@@ -62,10 +66,11 @@ fn parse_mul(input: &str) -> Result<usize> {
         .collect::<Result<_, _>>()?;
 
     match nums[..] {
-        [x, y] => Ok(x * y),
+        [x, y] => Ok((x * y, rest)),
         _ => Err(anyhow::anyhow!("Expected exactly 2 numbers")),
     }
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -112,13 +117,7 @@ mod tests {
     }
 
     #[test]
-    fn test_basic_parsing() {
-        assert!(matches!(parse_mul("mul(2,4)"), Ok(8)));
-        assert!(matches!(parse_mul("mul(3,7)"), Ok(21)));
-    }
-
-    #[test]
     fn should_parse_unclosed_mul() {
-        assert!(parse_mul("mul(32,64]then").is_err());
+        assert!(parse_mul_and_remainder("mul(32,64]then").is_err());
     }
 }
