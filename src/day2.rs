@@ -4,23 +4,43 @@ use itertools::Itertools;
 use std::str::FromStr;
 pub struct Solver;
 
+enum Direction {
+    Increasing(i32),
+    Decreasing(i32),
+    Level,
+}
+
+impl From<(i32, i32)> for Direction {
+    fn from((prev, next): (i32, i32)) -> Self {
+        let diff = next - prev;
+        if diff > 0 {
+            Direction::Increasing(diff)
+        } else if diff < 0 {
+            Direction::Decreasing(-diff)
+        } else {
+            Direction::Level
+        }
+    }
+}
+
 #[derive(Debug, PartialEq)]
 struct Report {
     levels: Vec<i32>,
 }
 
 impl Report {
-    pub fn windows(&self, skip_list: &[usize]) -> Vec<(i32, i32)> {
+    pub fn windows(&self, skip_list: &[usize]) -> Vec<Direction> {
         self.levels
             .iter()
             .enumerate()
             .filter(|(i, _)| !skip_list.contains(i))
             .map(|(_, &level)| level)
             .tuple_windows()
+            .map(|(prev, next)| Direction::from((prev, next)))
             .collect()
     }
 
-    pub fn variant_windows(&self, max_dampner_level: usize) -> Vec<Vec<(i32, i32)>> {
+    pub fn variant_windows(&self, max_dampner_level: usize) -> Vec<Vec<Direction>> {
         (0..=max_dampner_level)
             .flat_map(|skip_count| {
                 (0..self.len())
@@ -34,31 +54,26 @@ impl Report {
         self.levels.len()
     }
 
-    pub fn is_safe(&self, max_dampner_level: usize, max_diff: i32) -> bool {
+    pub fn is_safe(&self, max_dampner_level: usize, max_distance: i32) -> bool {
         self.variant_windows(max_dampner_level)
             .iter()
             .any(|windows| {
                 let mut increasing_count = 0;
                 let mut decreasing_count = 0;
-                windows.iter().all(|(prev, next)| match next - prev {
-                    diff if diff.abs() > max_diff || diff == 0 => false,
-                    diff if (diff > 0 && decreasing_count > 0) => {
-                        increasing_count += 1;
-                        false
-                    }
-                    diff if (diff < 0 && increasing_count > 0) => {
-                        decreasing_count += 1;
-                        false
-                    }
-                    diff if diff > 0 => {
+                windows.iter().all(|direction| match direction {
+                    Direction::Level => false,
+                    Direction::Increasing(distance) if *distance > max_distance => false,
+                    Direction::Increasing(_) if decreasing_count > 0 => false,
+                    Direction::Increasing(_) => {
                         increasing_count += 1;
                         true
                     }
-                    diff if diff < 0 => {
+                    Direction::Decreasing(distance) if *distance > max_distance => false,
+                    Direction::Decreasing(_) if increasing_count > 0 => false,
+                    Direction::Decreasing(_) => {
                         decreasing_count += 1;
                         true
                     }
-                    _ => unreachable!(),
                 })
             })
     }
