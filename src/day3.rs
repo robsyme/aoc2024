@@ -30,19 +30,16 @@ impl advent::Solver<3> for Solver {
             .char_indices()
             .scan(true, |enabled, (i, _)| {
                 let s = &input[i..];
-                match s {
-                    s if s.starts_with("don't()") => {
-                        *enabled = false;
-                        Some(None)
-                    }
-                    s if s.starts_with("do()") => {
-                        *enabled = true;
-                        Some(None)
-                    }
-                    s if s.starts_with("mul(") && *enabled => {
-                        Some(parse_mul(s).ok())
-                    }
-                    _ => Some(None),
+                if s.starts_with("don't()") {
+                    *enabled = false;
+                    Some(None)
+                } else if s.starts_with("do()") {
+                    *enabled = true;
+                    Some(None)
+                } else if s.starts_with("mul(") && *enabled {
+                    Some(parse_mul(s).ok())
+                } else {
+                    Some(None)
                 }
             })
             .flatten()
